@@ -1010,7 +1010,7 @@ void ikcp_flush(ikcpcb *kcp)
 		}
 	}
 
-	// flash remain segments
+	// flush remain segments
 	size = (int)(ptr - buffer);
 	if (size > 0) {
 		ikcp_output(kcp, buffer, size);
@@ -1189,5 +1189,15 @@ int ikcp_waitsnd(const ikcpcb *kcp)
 {
 	return kcp->nsnd_buf + kcp->nsnd_que;
 }
+
+int ikcp_get_conv(const char *data, long size, IUINT32* conv_out)
+{
+    if (data == NULL || size < (int)IKCP_OVERHEAD)
+        return 0;
+    
+    ikcp_decode32u(data, conv_out);
+    return 1;
+}
+
 
 

@@ -389,6 +389,8 @@ void ikcp_log(ikcpcb *kcp, int mask, const char *fmt, ...);
 // setup allocator
 void ikcp_allocator(void* (*new_malloc)(size_t), void (*new_free)(void*));
 
+int ikcp_get_conv(const char *data, long size, IUINT32* conv_out);
+
 
 #ifdef __cplusplus
 }

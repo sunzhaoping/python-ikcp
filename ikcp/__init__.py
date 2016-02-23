@@ -195,6 +195,8 @@ void ikcp_log(ikcpcb *kcp, int mask, const char *fmt, ...);
 
 // setup allocator
 void ikcp_allocator(void* (*new_malloc)(size_t), void (*new_free)(void*));
+
+int ikcp_get_conv(const char *data, long size, IUINT32* conv_out);
 """
 SOURCE = """
 #include <ikcp.c>
@@ -223,6 +225,7 @@ class IKcp(object):
         self._kcp = ikcp_impl.ikcp_create(conv , user_handle)
         self._kcp.output = ikcp_output
         self._callback = callback
+
         if mode == DEFAULT_MODE:
             ikcp_impl.ikcp_nodelay(self._kcp, 0, 10, 0, 0)
         elif mode == NORMAL_MODE:
@@ -264,6 +267,10 @@ class IKcp(object):
         return ikcp_impl.ikcp_setmtu(self._kcp, value)
 
     @property
+    def connected(self):
+        return self._kcp.state == 0
+
+    @property
     def sndwnd(self):
         return self._kcp.snd_wnd
 
@@ -298,3 +305,9 @@ class IKcp(object):
 
     def nodelay(self, nodelay, interval, resend, nc):
         return ikcp_impl.ikcp_nodelay(self._kcp, nodelay ,interval ,resend, nc)
+
+    @classmethod
+    def get_conv(cls, data):
+        out = ffi.new('IUINT32*', 0)
+        result = ikcp_impl.ikcp_get_conv(data,len(data), out)
+        return result, int(out[0])
