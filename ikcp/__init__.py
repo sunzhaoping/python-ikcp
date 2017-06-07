@@ -223,12 +223,12 @@ NORMAL_MODE = 1
 FAST_MODE = 2
 
 class IKcp(object):
-    def __init__(self, conv, callback= None, mode = DEFAULT_MODE):
+    def __init__(self, socket, conv, mode = DEFAULT_MODE):
         user_handle = ffi.new_handle(self)
         self._handle = user_handle
         self._kcp = ikcp_impl.ikcp_create(conv , user_handle)
         self._kcp.output = ikcp_output
-        self._callback = callback
+        self._socket = socket
 
         if mode == DEFAULT_MODE:
             ikcp_impl.ikcp_nodelay(self._kcp, 0, 10, 0, 0)
@@ -242,8 +242,7 @@ class IKcp(object):
             ikcp_impl.ikcp_release(self._kcp)
 
     def output(self, buffer):
-        if self._callback:
-            return self._callback(self,buffer)
+        self._socket.send(buffer);
         return -1
 
     @property
@@ -303,6 +302,9 @@ class IKcp(object):
 
     def input(self, data):
         return ikcp_impl.ikcp_input(self._kcp, data, len(data))
+
+    def on_input(self, sock, data, address):
+        self.input(data)
 
     def flush(self):
         ikcp_impl.ikcp_flush(self._kcp)
