@@ -109,7 +109,7 @@ struct IKCPCB
     void *user;
     char *buffer;
     int fastresend;
-    int nocwnd;
+    int nocwnd, stream;
     int logmask;
     int (*output)(const char *buf, int len, struct IKCPCB *kcp, void *user);
     void (*writelog)(const char *log, struct IKCPCB *kcp, void *user);
@@ -143,23 +143,26 @@ ikcpcb* ikcp_create(IUINT32 conv, void *user);
 // release kcp control object
 void ikcp_release(ikcpcb *kcp);
 
+// set output callback, which will be invoked by kcp^M
+void ikcp_setoutput(ikcpcb *kcp, int (*output)(const char *buf, int len, ikcpcb *kcp, void *user));
+
 // user/upper level recv: returns size, returns below zero for EAGAIN
 int ikcp_recv(ikcpcb *kcp, char *buffer, int len);
 
 // user/upper level send, returns below zero for error
 int ikcp_send(ikcpcb *kcp, const char *buffer, int len);
 
-// update state (call it repeatedly, every 10ms-100ms), or you can ask 
+// update state (call it repeatedly, every 10ms-100ms), or you can ask
 // ikcp_check when to call it again (without ikcp_input/_send calling).
-// 'current' - current timestamp in millisec. 
+// 'current' - current timestamp in millisec.
 void ikcp_update(ikcpcb *kcp, IUINT32 current);
 
 // Determine when should you invoke ikcp_update:
-// returns when you should invoke ikcp_update in millisec, if there 
+// returns when you should invoke ikcp_update in millisec, if there
 // is no ikcp_input/_send calling. you can call ikcp_update in that
 // time, instead of call update repeatly.
-// Important to reduce unnacessary ikcp_update invoking. use it to 
-// schedule ikcp_update (eg. implementing an epoll-like mechanism, 
+// Important to reduce unnacessary ikcp_update invoking. use it to
+// schedule ikcp_update (eg. implementing an epoll-like mechanism,
 // or optimize ikcp_update when handling massive kcp connections)
 IUINT32 ikcp_check(const ikcpcb *kcp, IUINT32 current);
 
@@ -183,7 +186,7 @@ int ikcp_waitsnd(const ikcpcb *kcp);
 
 // fastest: ikcp_nodelay(kcp, 1, 20, 2, 1)
 // nodelay: 0:disable(default), 1:enable
-// interval: internal update timer interval in millisec, default is 100ms 
+// interval: internal update timer interval in millisec, default is 100ms
 // resend: 0:disable fast resend(default), 1:enable fast resend
 // nc: 0:normal congestion control(default), 1:disable congestion control
 int ikcp_nodelay(ikcpcb *kcp, int nodelay, int interval, int resend, int nc);
@@ -196,11 +199,12 @@ void ikcp_log(ikcpcb *kcp, int mask, const char *fmt, ...);
 // setup allocator
 void ikcp_allocator(void* (*new_malloc)(size_t), void (*new_free)(void*));
 
-int ikcp_get_conv(const char *data, long size, IUINT32* conv_out);
+// read conv
+IUINT32 ikcp_getconv(const void *ptr);
 """
 SOURCE = """
 #include <ikcp.c>
-""" 
+"""
 ffi.cdef(CDEF)
 ffi.verifier = Verifier(ffi,SOURCE , include_dirs=[include_dir], modulename=_create_modulename(CDEF, SOURCE, sys.version))
 ffi.verifier.compile_module = _compile_module
@@ -221,7 +225,7 @@ FAST_MODE = 2
 class IKcp(object):
     def __init__(self, conv, callback= None, mode = DEFAULT_MODE):
         user_handle = ffi.new_handle(self)
-        self._handle = user_handle 
+        self._handle = user_handle
         self._kcp = ikcp_impl.ikcp_create(conv , user_handle)
         self._kcp.output = ikcp_output
         self._callback = callback
@@ -262,7 +266,7 @@ class IKcp(object):
     def mtu(self):
         return self._kcp.mtu
 
-    @mtu.setter 
+    @mtu.setter
     def mtu(self, value):
         return ikcp_impl.ikcp_setmtu(self._kcp, value)
 
@@ -293,7 +297,7 @@ class IKcp(object):
 
     def update(self):
         ikcp_impl.ikcp_update(self._kcp,ffi.cast("IUINT32", int(time.time()*1000)))
-  
+
     def check(self):
         return ikcp_impl.ikcp_check(self._kcp, ffi.cast("IUINT32", int(time.time()*1000)))
 
@@ -308,6 +312,4 @@ class IKcp(object):
 
     @classmethod
     def get_conv(cls, data):
-        out = ffi.new('IUINT32*', 0)
-        result = ikcp_impl.ikcp_get_conv(data,len(data), out)
-        return result, int(out[0])
+        return ikcp_impl.ikcp_getconv(data)
