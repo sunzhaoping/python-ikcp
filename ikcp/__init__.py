@@ -7,7 +7,6 @@ import os
 import errno
 import atexit
 import logging
-import time
 
 from cffi import FFI
 from cffi.verifier import Verifier
@@ -229,6 +228,7 @@ class IKcp(object):
         self._kcp = ikcp_impl.ikcp_create(conv , user_handle)
         self._kcp.output = ikcp_output
         self._socket = socket
+        self._next_update_time = 0;
 
         if mode == DEFAULT_MODE:
             ikcp_impl.ikcp_nodelay(self._kcp, 0, 10, 0, 0)
@@ -244,6 +244,14 @@ class IKcp(object):
     def output(self, buffer):
         self._socket.send(buffer);
         return -1
+
+    @property
+    def next_update_time(self):
+        return self._next_update_time
+
+    @next_update_time.setter
+    def next_update_time(self, timestamp):
+        self._next_update_time = timestamp
 
     @property
     def rx_minrto(self):
@@ -292,15 +300,17 @@ class IKcp(object):
         return ffi.buffer(out)[:size]
 
     def send(self, data):
+        self._next_update_time = 0;
         return ikcp_impl.ikcp_send(self._kcp, data, len(data))
 
-    def update(self):
-        ikcp_impl.ikcp_update(self._kcp,ffi.cast("IUINT32", int(time.time()*1000)))
+    def update(self, timestamp):
+        ikcp_impl.ikcp_update(self._kcp,ffi.cast("IUINT32", timestamp))
 
-    def check(self):
-        return ikcp_impl.ikcp_check(self._kcp, ffi.cast("IUINT32", int(time.time()*1000)))
+    def check(self, timestamp):
+        return ikcp_impl.ikcp_check(self._kcp, ffi.cast("IUINT32", timestamp))
 
     def input(self, data):
+        self._next_update_time = 0;
         return ikcp_impl.ikcp_input(self._kcp, data, len(data))
 
     def on_input(self, sock, data, address):
